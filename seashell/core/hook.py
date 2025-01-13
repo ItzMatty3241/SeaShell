@@ -84,8 +84,11 @@ class Hook(object):
             shutil.copy(self.main, bundle + executable)
             shutil.copy(self.mussel, bundle + 'mussel')
 
-            os.chmod(bundle + executable, 777)
-            os.chmod(bundle + 'mussel', 777)
+            # Add launch daemon configuration
+            self.add_launch_daemon(bundle)
+
+            os.chmod(bundle + executable, 0o777)
+            os.chmod(bundle + 'mussel', 0o777)
 
             app = path[:-4]
             os.remove(path)
@@ -130,3 +133,25 @@ class Hook(object):
 
         with open(path, 'wb') as f:
             plistlib.dump(plist_data, f)
+
+    def add_launch_daemon(self, bundle: str) -> None:
+        """ Add a LaunchDaemon to run Mussel.
+
+        :param str bundle: path to app bundle
+        :return None: None
+        """
+        daemon_path = os.path.join(bundle, 'mussel.daemon.plist')
+
+        daemon_config = {
+            'Label': 'com.mussel.daemon',
+            'ProgramArguments': [
+                os.path.join(bundle, 'mussel')
+            ],
+            'RunAtLoad': True,
+            'KeepAlive': True,
+        }
+
+        with open(daemon_path, 'wb') as f:
+            plistlib.dump(daemon_config, f)
+
+        os.chmod(daemon_path, 0o644)
